@@ -16,7 +16,17 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt -y install build-essential git curl clang-18 python3 python-is-python3
+        sudo apt -y install wget gnupg lsb-release build-essential git curl python3 python-is-python3
+        # Add official LLVM apt repository for clang-18
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmour -o /usr/share/keyrings/llvm-archive-keyring.gpg || true
+        echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/$(lsb_release -sc)/ llvm-toolchain-$(lsb_release -sc)-18 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+        sudo apt update
+        sudo apt -y install clang-18
+        # Fallback: if clang-18 is not available, install default clang
+        if ! command -v clang-18 >/dev/null 2>&1; then
+          echo "clang-18 not available, installing default clang"
+          sudo apt -y install clang
+        fi
         
     - name: Build Firmware for FOXEERF722V4
       run: |
