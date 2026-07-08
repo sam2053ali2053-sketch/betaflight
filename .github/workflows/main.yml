@@ -12,7 +12,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: 'recursive'
-        
+
     - name: Install dependencies
       run: |
         sudo apt update
@@ -21,20 +21,51 @@ jobs:
         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmour -o /usr/share/keyrings/llvm-archive-keyring.gpg || true
         echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/$(lsb_release -sc)/ llvm-toolchain-$(lsb_release -sc)-18 main" | sudo tee /etc/apt/sources.list.d/llvm.list
         sudo apt update
-        sudo apt -y install clang-18
-        # Fallback: if clang-18 is not available, install default clang
-        if ! command -v clang-18 >/dev/null 2>&1; then
+        # Try to install clang-18; fallback to generic clang if not available
+        if ! sudo apt -y install clang-18; then
           echo "clang-18 not available, installing default clang"
           sudo apt -y install clang
         fi
-        
+
+    - name: Debug target configs
+      run: |
+        set -euxo pipefail
+        cd firmware/BETAFPVG473
+        echo "Working directory:"
+        pwd
+        echo
+        echo "Top-level listing:"
+        ls -la
+        echo
+        echo "src tree listing (up to depth 6):"
+        ls -la src || true
+        find src -maxdepth 6 -type d -print || true
+        echo
+        echo "Find all target.mk files and print first 200 lines of each (if any):"
+        find src -type f -name 'target.mk' -print -exec sh -c 'echo "---- {} ----"; sed -n "1,200p" {} || true' \; || true
+        echo
+        echo "Grep for FOXEERF722V4 in configs:"
+        grep -R --line-number 'FOXEERF722V4' src || true
+        echo
+        echo "Grep for any TARGET_MCU definitions under src:"
+        grep -R --line-number 'TARGET_MCU' src || true
+        echo
+        echo "If Makefile supports a target listing, attempt to list available targets (non-fatal):"
+        if [ -f Makefile ]; then
+          make list-targets || true
+        else
+          echo "No Makefile found at repo root of firmware/BETAFPVG473"
+        fi
+
     - name: Build Firmware for FOXEERF722V4
       run: |
+        set -euxo pipefail
         cd firmware/BETAFPVG473
+        mkdir -p tools downloads
         make arm_sdk_install
         make configs
         make TARGET=FOXEERF722V4 RL_TOOLS_ROOT=../../../.. GCC_REQUIRED_VERSION=13.2.1
-        
+
     - name: Upload Hex File
       uses: actions/upload-artifact@v4
       with:
